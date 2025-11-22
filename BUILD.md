@@ -23,12 +23,61 @@ The APK will be output to:
 
 ## Option 2: GitHub Actions (Automated Cloud Build)
 
-The easiest way if you're on your phone! Just push to GitHub:
+The easiest way if you're on your phone! To set it up:
 
-1. Push your code to GitHub
-2. Go to the "Actions" tab in your GitHub repository
-3. Wait for the build to complete (~5 minutes)
-4. Download the APK from the build artifacts
+1. Create `.github/workflows/build-apk.yml` with this content:
+
+```yaml
+name: Build Android APK
+
+on:
+  push:
+    branches: [ "claude/*", "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+
+    - name: Build debug APK
+      run: ./gradlew assembleDebug
+
+    - name: Build release APK
+      run: ./gradlew assembleRelease
+
+    - name: Upload debug APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-debug
+        path: app/build/outputs/apk/debug/app-debug.apk
+
+    - name: Upload release APK (unsigned)
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-release-unsigned
+        path: app/build/outputs/apk/release/app-release-unsigned.apk
+```
+
+2. Push to GitHub
+3. Go to the "Actions" tab in your repository
+4. Wait for the build to complete (~5 minutes)
+5. Download the APK from the build artifacts
 
 The workflow automatically runs on:
 - Any push to branches starting with `claude/`
