@@ -102,11 +102,16 @@ object UrlValidator {
         return PRIVATE_IP_PATTERNS.any { it.matches(host) }
     }
 
+    // IPv4 address pattern
+    private val IPV4_PATTERN = Regex(
+        """^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"""
+    )
+
     /**
      * Checks if a string looks like an IP address.
      */
     private fun isIpAddress(host: String): Boolean {
-        return Patterns.IP_ADDRESS.matcher(host).matches() ||
+        return IPV4_PATTERN.matches(host) ||
                host.contains(":") // IPv6
     }
 

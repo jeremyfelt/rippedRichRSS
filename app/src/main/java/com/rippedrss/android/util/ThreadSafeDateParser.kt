@@ -53,11 +53,9 @@ object ThreadSafeDateParser {
 
         for (formatterHolder in formatters) {
             try {
-                val formatter = formatterHolder.get()
-                val date = formatter.parse(trimmed)
-                if (date != null) {
-                    return date.time
-                }
+                val formatter = formatterHolder.get() ?: continue
+                val date = formatter.parse(trimmed) ?: continue
+                return date.time
             } catch (e: ParseException) {
                 // Try next format
             }
@@ -74,7 +72,7 @@ object ThreadSafeDateParser {
      * @return Formatted date string
      */
     fun format(timestamp: Long): String {
-        val formatter = formatters[0].get()
+        val formatter = formatters[0].get() ?: return ""
         return formatter.format(Date(timestamp))
     }
 }

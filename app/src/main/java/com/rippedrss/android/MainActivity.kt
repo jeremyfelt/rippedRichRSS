@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,10 +32,10 @@ import com.rippedrss.android.worker.FeedRefreshWorker
 
 sealed class Screen(val route: String, val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     data object Feeds : Screen("feeds", "Feeds", Icons.Default.RssFeed)
-    data object Articles : Screen("articles", "Articles", Icons.Default.Article)
+    data object Articles : Screen("articles", "Articles", Icons.AutoMirrored.Filled.Article)
     data object Saved : Screen("saved", "Saved", Icons.Default.Bookmark)
     data object Settings : Screen("settings", "Settings", Icons.Default.Settings)
-    data object ArticleReader : Screen("article_reader", "Article", Icons.Default.Article)
+    data object ArticleReader : Screen("article_reader", "Article", Icons.AutoMirrored.Filled.Article)
 }
 
 class MainActivity : ComponentActivity() {
