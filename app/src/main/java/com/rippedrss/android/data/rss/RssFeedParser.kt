@@ -146,6 +146,7 @@ class RssFeedParser {
         var author: String? = null
         var pubDate: Long = System.currentTimeMillis()
         var id: String? = null
+        var imageUrl: String? = null
 
         while (parser.next() != XmlPullParser.END_TAG || parser.name != "entry") {
             if (parser.eventType != XmlPullParser.START_TAG) continue

@@ -25,7 +25,7 @@ object HtmlSanitizer {
     fun sanitize(html: String?): String {
         if (html.isNullOrBlank()) return ""
 
-        var result = html
+        var result: String = html
 
         // Remove script tags and their content
         result = removeTagWithContent(result, "script")
