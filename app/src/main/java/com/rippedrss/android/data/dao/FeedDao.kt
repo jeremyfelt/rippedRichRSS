@@ -18,7 +18,7 @@ interface FeedDao {
     @Query("SELECT * FROM feeds WHERE isFavorite = 1 ORDER BY lastUpdated ASC")
     suspend fun getFavoriteFeedsForRefresh(): List<Feed>
 
-    @Query("SELECT * FROM feeds WHERE isFavorite = 0 ORDER BY lastUpdated ASC NULLS FIRST LIMIT :limit")
+    @Query("SELECT * FROM feeds WHERE isFavorite = 0 ORDER BY COALESCE(lastUpdated, 0) ASC LIMIT :limit")
     suspend fun getOldestNonFavoriteFeeds(limit: Int): List<Feed>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
