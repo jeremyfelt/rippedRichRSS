@@ -5,11 +5,16 @@ import com.rippedrss.android.data.dao.ArticleDao
 import com.rippedrss.android.data.dao.FeedDao
 import com.rippedrss.android.data.model.Feed
 import com.rippedrss.android.util.UrlValidator
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import java.util.concurrent.TimeUnit
 
 data class FeedRefreshResult(
     val feedId: String,
@@ -44,7 +49,7 @@ class FeedFetcher(
 
         // Process feeds concurrently with a limit
         coroutineScope {
-            val semaphore = kotlinx.coroutines.sync.Semaphore(maxConcurrent)
+            val semaphore = Semaphore(maxConcurrent)
 
             feedList.map { feed ->
                 async {
@@ -145,7 +150,7 @@ class FeedFetcher(
 
         // Use lower concurrency for background to be more conservative
         coroutineScope {
-            val semaphore = kotlinx.coroutines.sync.Semaphore(5)
+            val semaphore = Semaphore(5)
 
             feedsToRefresh.map { feed ->
                 async {
