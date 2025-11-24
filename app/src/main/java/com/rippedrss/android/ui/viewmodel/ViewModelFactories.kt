@@ -1,5 +1,6 @@
 package com.rippedrss.android.ui.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.rippedrss.android.data.preferences.AppPreferences
@@ -31,12 +32,13 @@ class ArticleViewModelFactory(
 }
 
 class SettingsViewModelFactory(
-    private val appPreferences: AppPreferences
+    private val appPreferences: AppPreferences,
+    private val context: Context
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(SettingsViewModel::class.java)) {
-            return SettingsViewModel(appPreferences) as T
+            return SettingsViewModel(appPreferences, context) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

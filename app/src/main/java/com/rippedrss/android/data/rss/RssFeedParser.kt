@@ -2,12 +2,12 @@ package com.rippedrss.android.data.rss
 
 import android.util.Xml
 import com.rippedrss.android.data.model.Article
+import com.rippedrss.android.util.HtmlSanitizer
+import com.rippedrss.android.util.ThreadSafeDateParser
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserException
 import java.io.IOException
 import java.io.InputStream
-import java.text.SimpleDateFormat
-import java.util.*
 
 data class ParsedFeed(
     val title: String,
@@ -17,15 +17,6 @@ data class ParsedFeed(
 )
 
 class RssFeedParser {
-
-    private val dateFormats = listOf(
-        SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss Z", Locale.US),
-        SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z", Locale.US),
-        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.US),
-        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US),
-        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US),
-        SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
-    )
 
     @Throws(XmlPullParserException::class, IOException::class)
     fun parse(inputStream: InputStream, feedId: String, feedUrl: String): ParsedFeed {
@@ -116,7 +107,7 @@ class RssFeedParser {
                 "content:encoded" -> content = readText(parser, "content:encoded")
                 "author" -> author = readText(parser, "author")
                 "dc:creator" -> if (author == null) author = readText(parser, "dc:creator")
-                "pubDate" -> pubDate = parseDate(readText(parser, "pubDate"))
+                "pubDate" -> pubDate = ThreadSafeDateParser.parse(readText(parser, "pubDate"))
                 "guid" -> guid = readText(parser, "guid")
                 "media:content" -> imageUrl = parser.getAttributeValue(null, "url")
                 "enclosure" -> {
@@ -132,8 +123,8 @@ class RssFeedParser {
 
         return Article(
             guid = guid ?: link,
-            title = title.ifEmpty { "Untitled" },
-            summary = stripHtml(description),
+            title = HtmlSanitizer.stripAllTags(title).ifEmpty { "Untitled" },
+            summary = HtmlSanitizer.stripAllTags(description),
             content = content,
             link = link,
             author = author,
@@ -171,8 +162,10 @@ class RssFeedParser {
                 "summary" -> summary = readText(parser, "summary")
                 "content" -> content = readText(parser, "content")
                 "author" -> author = readAtomAuthor(parser)
-                "published" -> pubDate = parseDate(readText(parser, "published"))
-                "updated" -> if (pubDate == System.currentTimeMillis()) pubDate = parseDate(readText(parser, "updated"))
+                "published" -> pubDate = ThreadSafeDateParser.parse(readText(parser, "published"))
+                "updated" -> if (pubDate == System.currentTimeMillis()) pubDate = ThreadSafeDateParser.parse(readText(parser, "updated"))
+                "media:thumbnail" -> if (imageUrl == null) imageUrl = parser.getAttributeValue(null, "url")
+                "media:content" -> if (imageUrl == null) imageUrl = parser.getAttributeValue(null, "url")
                 "id" -> id = readText(parser, "id")
                 else -> skip(parser)
             }
@@ -180,15 +173,15 @@ class RssFeedParser {
 
         return Article(
             guid = id ?: link,
-            title = title.ifEmpty { "Untitled" },
-            summary = stripHtml(summary),
+            title = HtmlSanitizer.stripAllTags(title).ifEmpty { "Untitled" },
+            summary = HtmlSanitizer.stripAllTags(summary),
             content = content,
             link = link,
             author = author,
             pubDate = pubDate,
             feedTitle = feedTitle,
             feedId = feedId,
-            imageUrl = null
+            imageUrl = imageUrl
         )
     }
 
@@ -241,28 +234,5 @@ class RssFeedParser {
                 XmlPullParser.START_TAG -> depth++
             }
         }
-    }
-
-    private fun parseDate(dateString: String): Long {
-        for (format in dateFormats) {
-            try {
-                return format.parse(dateString)?.time ?: System.currentTimeMillis()
-            } catch (e: Exception) {
-                // Try next format
-            }
-        }
-        return System.currentTimeMillis()
-    }
-
-    private fun stripHtml(html: String): String {
-        return html
-            .replace(Regex("<[^>]*>"), "")
-            .replace("&nbsp;", " ")
-            .replace("&amp;", "&")
-            .replace("&lt;", "<")
-            .replace("&gt;", ">")
-            .replace("&quot;", "\"")
-            .replace("&#39;", "'")
-            .trim()
     }
 }

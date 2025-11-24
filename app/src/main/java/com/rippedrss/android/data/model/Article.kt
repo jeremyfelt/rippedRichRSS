@@ -1,10 +1,16 @@
 package com.rippedrss.android.data.model
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import java.util.UUID
 
-@Entity(tableName = "articles")
+@Entity(
+    tableName = "articles",
+    indices = [
+        Index(value = ["feedId", "guid"], unique = true)
+    ]
+)
 data class Article(
     @PrimaryKey
     val uniqueId: String = UUID.randomUUID().toString(),
