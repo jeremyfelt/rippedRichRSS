@@ -282,7 +282,7 @@ private fun SettingsDropdownItem(
                 readOnly = true,
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                 modifier = Modifier
-                    .menuAnchor()
+                    .menuAnchor(MenuAnchorType.PrimaryNotEditable)
                     .width(140.dp),
                 colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
                 singleLine = true
