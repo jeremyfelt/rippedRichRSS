@@ -1,6 +1,7 @@
 package com.rippedrss.android
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -19,6 +20,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.rippedrss.android.ui.screens.*
 import com.rippedrss.android.ui.theme.RippedRichRSSTheme
+import com.rippedrss.android.ui.theme.ThemeMode
 import com.rippedrss.android.ui.viewmodel.ArticleViewModel
 import com.rippedrss.android.ui.viewmodel.ArticleViewModelFactory
 import com.rippedrss.android.ui.viewmodel.FeedViewModel
@@ -50,11 +52,12 @@ class MainActivity : ComponentActivity() {
                 factory = ArticleViewModelFactory(application.articleRepository)
             )
             val settingsViewModel: SettingsViewModel = viewModel(
-                factory = SettingsViewModelFactory(application.appPreferences)
+                factory = SettingsViewModelFactory(application.appPreferences, applicationContext)
             )
 
             val settingsUiState by settingsViewModel.uiState.collectAsState()
-            val darkMode = settingsUiState.darkMode
+            val themeMode = settingsUiState.themeMode
+            val textScale = settingsUiState.textScale
 
             // Monitor background refresh setting and schedule/cancel work accordingly
             LaunchedEffect(settingsUiState.backgroundRefreshEnabled) {
@@ -65,12 +68,21 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            RippedRichRSSTheme(darkTheme = darkMode) {
+            // Monitor reset completion
+            LaunchedEffect(Unit) {
+                settingsViewModel.resetComplete.collect { success ->
+                    val message = if (success) "All data has been reset" else "Failed to reset data"
+                    Toast.makeText(this@MainActivity, message, Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            RippedRichRSSTheme(themeMode = themeMode) {
                 MainScreen(
                     feedViewModel = feedViewModel,
                     articleViewModel = articleViewModel,
                     settingsViewModel = settingsViewModel,
-                    isDarkMode = darkMode
+                    themeMode = themeMode,
+                    textScale = textScale
                 )
             }
         }
@@ -83,7 +95,8 @@ fun MainScreen(
     feedViewModel: FeedViewModel,
     articleViewModel: ArticleViewModel,
     settingsViewModel: SettingsViewModel,
-    isDarkMode: Boolean
+    themeMode: ThemeMode,
+    textScale: com.rippedrss.android.ui.theme.TextScale
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -178,7 +191,9 @@ fun MainScreen(
                     uiState = settingsUiState,
                     onBackgroundRefreshChanged = { settingsViewModel.setBackgroundRefreshEnabled(it) },
                     onWifiOnlyChanged = { settingsViewModel.setWifiOnly(it) },
-                    onDarkModeChanged = { settingsViewModel.setDarkMode(it) }
+                    onThemeModeChanged = { settingsViewModel.setThemeMode(it) },
+                    onTextScaleChanged = { settingsViewModel.setTextScale(it) },
+                    onResetData = { settingsViewModel.resetAllData() }
                 )
             }
 
@@ -188,7 +203,8 @@ fun MainScreen(
                         article = article,
                         onBack = { navController.popBackStack() },
                         onToggleSaved = { articleViewModel.toggleSaved(article) },
-                        isDarkMode = isDarkMode
+                        themeMode = themeMode,
+                        textScale = textScale
                     )
                 }
             }

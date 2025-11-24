@@ -1,6 +1,7 @@
 package com.rippedrss.android.data.rss
 
 import android.util.Log
+import com.rippedrss.android.util.UrlValidator
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.xmlpull.v1.XmlPullParserFactory
@@ -19,20 +20,33 @@ class FeedDiscoverer(private val okHttpClient: OkHttpClient) {
 
     suspend fun discoverFeed(url: String): DiscoveredFeed? {
         return try {
+            // Normalize and validate URL
+            val normalizedUrl = UrlValidator.normalizeUrl(url)
+            val validationResult = UrlValidator.validate(normalizedUrl)
+            if (!validationResult.isValid()) {
+                Log.w(TAG, "Invalid URL: ${(validationResult as UrlValidator.ValidationResult.Invalid).reason}")
+                return null
+            }
+            val safeUrl = validationResult.getUrlOrNull() ?: return null
+
             // First, try the URL directly as a feed
-            if (isValidFeed(url)) {
-                val feedInfo = getFeedInfo(url)
+            if (isValidFeed(safeUrl)) {
+                val feedInfo = getFeedInfo(safeUrl)
                 if (feedInfo != null) {
                     return feedInfo
                 }
             }
 
             // If not a direct feed, try to find feed links in the HTML
-            val feedUrl = findFeedInHtml(url)
+            val feedUrl = findFeedInHtml(safeUrl)
             if (feedUrl != null) {
-                val feedInfo = getFeedInfo(feedUrl)
-                if (feedInfo != null) {
-                    return feedInfo.copy(siteUrl = url)
+                // Validate discovered feed URL as well
+                val feedValidation = UrlValidator.validate(feedUrl)
+                if (feedValidation.isValid()) {
+                    val feedInfo = getFeedInfo(feedUrl)
+                    if (feedInfo != null) {
+                        return feedInfo.copy(siteUrl = safeUrl)
+                    }
                 }
             }
 
@@ -48,12 +62,14 @@ class FeedDiscoverer(private val okHttpClient: OkHttpClient) {
             val request = Request.Builder().url(url).build()
             val response = okHttpClient.newCall(request).execute()
 
-            if (!response.isSuccessful) {
-                return false
-            }
+            response.use { resp ->
+                if (!resp.isSuccessful) {
+                    return false
+                }
 
-            val contentType = response.header("Content-Type") ?: ""
-            contentType.contains("xml") || contentType.contains("rss") || contentType.contains("atom")
+                val contentType = resp.header("Content-Type") ?: ""
+                contentType.contains("xml") || contentType.contains("rss") || contentType.contains("atom")
+            }
         } catch (e: Exception) {
             false
         }
@@ -64,11 +80,12 @@ class FeedDiscoverer(private val okHttpClient: OkHttpClient) {
             val request = Request.Builder().url(feedUrl).build()
             val response = okHttpClient.newCall(request).execute()
 
-            if (!response.isSuccessful) {
-                return null
-            }
+            response.use { resp ->
+                if (!resp.isSuccessful) {
+                    return null
+                }
 
-            response.body?.byteStream()?.use { inputStream ->
+                resp.body?.byteStream()?.use { inputStream ->
                 val factory = XmlPullParserFactory.newInstance()
                 factory.isNamespaceAware = false
                 val parser = factory.newPullParser()
@@ -117,10 +134,11 @@ class FeedDiscoverer(private val okHttpClient: OkHttpClient) {
                     }
                 }
 
-                if (title != null) {
-                    DiscoveredFeed(feedUrl, title, link)
-                } else {
-                    null
+                    if (title != null) {
+                        DiscoveredFeed(feedUrl, title, link)
+                    } else {
+                        null
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -134,37 +152,43 @@ class FeedDiscoverer(private val okHttpClient: OkHttpClient) {
             val request = Request.Builder().url(url).build()
             val response = okHttpClient.newCall(request).execute()
 
-            if (!response.isSuccessful) {
-                return null
-            }
-
-            val html = response.body?.string() ?: return null
-
-            // Look for RSS/Atom feed links in the HTML
-            val linkPattern = Regex("""<link[^>]*type=["']application/(rss|atom)\+xml["'][^>]*>""", RegexOption.IGNORE_CASE)
-            val matches = linkPattern.findAll(html)
-
-            for (match in matches) {
-                val linkTag = match.value
-                val hrefPattern = Regex("""href=["']([^"']+)["']""")
-                val hrefMatch = hrefPattern.find(linkTag)
-
-                if (hrefMatch != null) {
-                    var feedUrl = hrefMatch.groupValues[1]
-
-                    // Handle relative URLs
-                    if (feedUrl.startsWith("/")) {
-                        val baseUrl = url.substringBefore("://") + "://" + url.substringAfter("://").substringBefore("/")
-                        feedUrl = baseUrl + feedUrl
-                    } else if (!feedUrl.startsWith("http")) {
-                        feedUrl = url.substringBeforeLast("/") + "/" + feedUrl
-                    }
-
-                    return feedUrl
+            response.use { resp ->
+                if (!resp.isSuccessful) {
+                    return null
                 }
-            }
 
-            null
+                val html = resp.body?.string() ?: return null
+
+                // Look for RSS/Atom feed links in the HTML
+                // Use a more conservative regex pattern to avoid ReDoS
+                val linkPattern = Regex(
+                    """<link\s+[^>]{0,500}type=["']application/(rss|atom)\+xml["'][^>]{0,500}>""",
+                    RegexOption.IGNORE_CASE
+                )
+                val matches = linkPattern.findAll(html)
+
+                for (match in matches) {
+                    val linkTag = match.value
+                    val hrefPattern = Regex("""href=["']([^"']+)["']""")
+                    val hrefMatch = hrefPattern.find(linkTag)
+
+                    if (hrefMatch != null) {
+                        var feedUrl = hrefMatch.groupValues[1]
+
+                        // Handle relative URLs
+                        if (feedUrl.startsWith("/")) {
+                            val baseUrl = url.substringBefore("://") + "://" + url.substringAfter("://").substringBefore("/")
+                            feedUrl = baseUrl + feedUrl
+                        } else if (!feedUrl.startsWith("http")) {
+                            feedUrl = url.substringBeforeLast("/") + "/" + feedUrl
+                        }
+
+                        return feedUrl
+                    }
+                }
+
+                null
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error finding feed in HTML: ${e.message}", e)
             null

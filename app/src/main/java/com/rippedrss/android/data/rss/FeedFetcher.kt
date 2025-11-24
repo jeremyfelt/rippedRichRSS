@@ -4,7 +4,9 @@ import android.util.Log
 import com.rippedrss.android.data.dao.ArticleDao
 import com.rippedrss.android.data.dao.FeedDao
 import com.rippedrss.android.data.model.Feed
+import com.rippedrss.android.util.UrlValidator
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.first
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
@@ -29,18 +31,8 @@ class FeedFetcher(
     }
 
     suspend fun refreshAllFeeds(): List<FeedRefreshResult> = withContext(Dispatchers.IO) {
-        val feeds = feedDao.getAllFeeds()
-
-        // Get the current list of feeds
-        val feedList = mutableListOf<Feed>()
-        val job = launch {
-            feeds.collect { list ->
-                feedList.clear()
-                feedList.addAll(list)
-                cancel() // Only take the first emission
-            }
-        }
-        job.join()
+        // Use .first() for thread-safe single emission collection
+        val feedList = feedDao.getAllFeeds().first()
 
         if (feedList.isEmpty()) {
             return@withContext emptyList()
@@ -76,6 +68,14 @@ class FeedFetcher(
 
     suspend fun refreshFeed(feed: Feed): FeedRefreshResult = withContext(Dispatchers.IO) {
         try {
+            // Validate URL before making request
+            val validationResult = UrlValidator.validate(feed.feedUrl)
+            if (!validationResult.isValid()) {
+                val error = "Invalid URL: ${(validationResult as UrlValidator.ValidationResult.Invalid).reason}"
+                feedDao.updateLastRefreshError(feed.id, error)
+                return@withContext FeedRefreshResult(feed.id, false, error)
+            }
+
             val request = Request.Builder()
                 .url(feed.feedUrl)
                 .build()
